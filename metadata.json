@@ -1,0 +1,6 @@
+{
+  "name": "Mama's Kitchen",
+  "description": "Authentic Nigerian restaurant showcasing traditional rice dishes, swallows, soups, and Nigerian specials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
