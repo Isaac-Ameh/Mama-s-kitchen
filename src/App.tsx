@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Navigate,
@@ -9,7 +9,13 @@ import {
 } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/react';
 import { MotionConfig, AnimatePresence, motion } from 'motion/react';
-import { CLERK_PUBLISHABLE_KEY, isClerkConfigured } from './lib/clerkConfig';
+import {
+  CLERK_PUBLISHABLE_KEY,
+  isClerkConfigured,
+  isValidPublishableKey,
+  normalizePublishableKey,
+} from './lib/clerkConfig';
+import { parseApiJson } from './lib/api';
 import { AppAuthProvider } from './context/AppAuthContext';
 import { CartProvider } from './context/CartContext';
 import { Layout } from './components/Layout';
@@ -81,23 +87,67 @@ function AnimatedRoutes() {
   );
 }
 
-function ClerkRouterBridge({ children }: { children: React.ReactNode }) {
+function ClerkAndAuthWrapper({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const [runtimeKey, setRuntimeKey] = useState<string>(
+    isClerkConfigured ? CLERK_PUBLISHABLE_KEY : ''
+  );
+  const [resolvingConfig, setResolvingConfig] = useState<boolean>(!isClerkConfigured);
 
-  if (!isClerkConfigured) {
-    return <>{children}</>;
+  useEffect(() => {
+    if (isClerkConfigured) return;
+
+    let cancelled = false;
+    async function loadRuntimeConfig() {
+      try {
+        const res = await fetch('/api/config', { credentials: 'same-origin' });
+        const data = await parseApiJson<{ clerkPublishableKey?: string | null }>(
+          res,
+          'Unable to load runtime configuration.'
+        );
+        const normalized = normalizePublishableKey(data.clerkPublishableKey || '');
+        if (!cancelled && isValidPublishableKey(normalized)) {
+          setRuntimeKey(normalized);
+        }
+      } catch {
+        // Fallback to unconfigured guidance UI if /api/config is unavailable
+      } finally {
+        if (!cancelled) setResolvingConfig(false);
+      }
+    }
+
+    void loadRuntimeConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (resolvingConfig) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#143628]/20 border-t-[#143628] animate-spin" />
+      </div>
+    );
+  }
+
+  const hasValidKey = isValidPublishableKey(runtimeKey);
+
+  if (!hasValidKey) {
+    return <AppAuthProvider clerkConfigured={false}>{children}</AppAuthProvider>;
   }
 
   return (
     <ClerkProvider
-      publishableKey={CLERK_PUBLISHABLE_KEY}
+      publishableKey={runtimeKey}
       routerPush={(to) => navigate(to)}
       routerReplace={(to) => navigate(to, { replace: true })}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/cart"
+      signUpFallbackRedirectUrl="/cart"
       afterSignOutUrl="/"
     >
-      {children}
+      <AppAuthProvider clerkConfigured={true}>{children}</AppAuthProvider>
     </ClerkProvider>
   );
 }
@@ -106,16 +156,14 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
-        <ClerkRouterBridge>
-          <AppAuthProvider>
-            <CartProvider>
-              <ScrollToTop />
-              <Layout>
-                <AnimatedRoutes />
-              </Layout>
-            </CartProvider>
-          </AppAuthProvider>
-        </ClerkRouterBridge>
+        <ClerkAndAuthWrapper>
+          <CartProvider>
+            <ScrollToTop />
+            <Layout>
+              <AnimatedRoutes />
+            </Layout>
+          </CartProvider>
+        </ClerkAndAuthWrapper>
       </BrowserRouter>
     </MotionConfig>
   );

@@ -1,4 +1,4 @@
-function normalizePublishableKey(raw: string): string {
+export function normalizePublishableKey(raw: string): string {
   let val = raw.trim();
   // Strip accidental "ENV_NAME=" prefix if pasted from a .env line
   if (/^[A-Z0-9_]+=(.+)$/.test(val)) {
@@ -7,7 +7,7 @@ function normalizePublishableKey(raw: string): string {
   return val.replace(/^['"]|['"]$/g, '').trim();
 }
 
-function isValidPublishableKey(key: string): boolean {
+export function isValidPublishableKey(key: string): boolean {
   return /^pk_(test|live)_[A-Za-z0-9+/=_-]+$/.test(key);
 }
 

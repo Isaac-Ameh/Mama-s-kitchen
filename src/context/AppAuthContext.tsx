@@ -60,8 +60,14 @@ function UnconfiguredAuthProvider({ children }: { children: React.ReactNode }) {
   return <AppAuthContext.Provider value={value}>{children}</AppAuthContext.Provider>;
 }
 
-export function AppAuthProvider({ children }: { children: React.ReactNode }) {
-  if (isClerkConfigured) {
+export function AppAuthProvider({
+  clerkConfigured = isClerkConfigured,
+  children,
+}: {
+  clerkConfigured?: boolean;
+  children: React.ReactNode;
+}) {
+  if (clerkConfigured) {
     return <ClerkBackedAuthProvider>{children}</ClerkBackedAuthProvider>;
   }
   return <UnconfiguredAuthProvider>{children}</UnconfiguredAuthProvider>;

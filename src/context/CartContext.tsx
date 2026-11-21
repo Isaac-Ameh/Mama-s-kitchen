@@ -35,13 +35,50 @@ function hydrateCartItems(entries: ServerCartEntry[]): CartItem[] {
   return hydrated;
 }
 
+function getUserCartStorageKey(userId: string): string {
+  return `mamas_kitchen_cart:${userId}`;
+}
+
+function readLocalUserCart(userId: string): CartItem[] {
+  try {
+    const raw = window.localStorage.getItem(getUserCartStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return hydrateCartItems(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalUserCart(userId: string, cartItems: CartItem[]): void {
+  try {
+    const key = getUserCartStorageKey(userId);
+    if (cartItems.length === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(
+      key,
+      JSON.stringify(
+        cartItems.map((item) => ({
+          mealId: item.meal.id,
+          quantity: item.quantity,
+        }))
+      )
+    );
+  } catch {
+    // Ignore storage quota / privacy mode errors
+  }
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAppAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastAddedMessage, setLastAddedMessage] = useState<string | null>(null);
 
-  // Sync cart from protected /api/cart endpoint when signed in; clear when signed out
+  // Sync cart from protected /api/cart endpoint + user-scoped localStorage backup
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -51,9 +88,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const activeUserId = userId;
+    const localBackup = readLocalUserCart(activeUserId);
+    if (localBackup.length > 0) {
+      setItems(localBackup);
+    }
+
     let cancelled = false;
     async function loadServerCart() {
-      setIsLoading(true);
+      setIsLoading(localBackup.length === 0);
       try {
         const token = await getToken();
         if (!token) return;
@@ -68,8 +111,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           res,
           'Unable to load cart.'
         );
-        if (!cancelled && Array.isArray(data.items)) {
-          setItems(hydrateCartItems(data.items));
+        if (cancelled || !Array.isArray(data.items)) return;
+
+        if (data.items.length > 0) {
+          const hydrated = hydrateCartItems(data.items);
+          setItems(hydrated);
+          writeLocalUserCart(activeUserId, hydrated);
+        } else if (localBackup.length > 0) {
+          // Re-sync local cart to fresh serverless instance
+          await fetch('/api/cart', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              items: localBackup.map((item) => ({
+                mealId: item.meal.id,
+                quantity: item.quantity,
+              })),
+            }),
+          });
         }
       } catch {
         // Keep current state if network request fails
@@ -78,7 +141,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    loadServerCart();
+    void loadServerCart();
     return () => {
       cancelled = true;
     };
@@ -86,13 +149,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const persistCartToServer = useCallback(
     async (nextItems: CartItem[]) => {
-      if (!isSignedIn) return;
+      if (!isSignedIn || !userId) return;
+      writeLocalUserCart(userId, nextItems);
       try {
         const token = await getToken();
         if (!token) return;
 
         await fetch('/api/cart', {
           method: 'PUT',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -108,7 +173,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Ignore transient sync failures
       }
     },
-    [isSignedIn, getToken]
+    [isSignedIn, userId, getToken]
   );
 
   useEffect(() => {
@@ -177,20 +242,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => {
     setItems([]);
-    if (!isSignedIn) return;
+    if (!isSignedIn || !userId) return;
+    writeLocalUserCart(userId, []);
     void (async () => {
       try {
         const token = await getToken();
         if (!token) return;
         await fetch('/api/cart', {
           method: 'DELETE',
+          credentials: 'same-origin',
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch {
         // Ignore transient sync failures
       }
     })();
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn, userId, getToken]);
 
   const dismissNotification = useCallback(() => {
     setLastAddedMessage(null);

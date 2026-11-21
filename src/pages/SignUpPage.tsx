@@ -117,7 +117,8 @@ export function SignUpPage() {
               </h2>
               <p className="text-sm text-[#57534E] leading-relaxed">
                 New user registration uses Clerk. Add your keys from the Clerk Dashboard into your
-                AI Studio Secrets (or local <code className="text-xs">.env</code> file):
+                AI Studio Secrets or Netlify Environment Variables (then trigger a redeploy on
+                Netlify so Vite bundles the frontend key):
               </p>
               <ul className="space-y-2 text-xs font-mono bg-[#F3EEE6] p-4 rounded-lg text-[#1C1917]">
                 <li>VITE_CLERK_PUBLISHABLE_KEY=pk_test_...</li>

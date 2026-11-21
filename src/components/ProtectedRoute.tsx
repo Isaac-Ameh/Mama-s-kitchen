@@ -41,7 +41,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
                 <code className="px-1.5 py-0.5 rounded bg-[#F3EEE6] text-[#1C1917] text-xs">
                   CLERK_SECRET_KEY
                 </code>{' '}
-                to your Secrets to enable Clerk sign-in.
+                to your Secrets or Netlify Environment Variables to enable Clerk sign-in.
               </p>
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <Link
