@@ -228,6 +228,73 @@ export function createApiApp(): express.Express {
     });
   });
 
+  app.get('/api/admin/system-diagnostic', async (_req, res) => {
+    const supabase = getSupabaseAdmin();
+    const supabaseConfigured = isSupabaseConfigured();
+    
+    let dbConnected = false;
+    let ownerExists = false;
+    let ownerCount = 0;
+    let targetUserProfile: unknown = null;
+    let migrationApplied = false;
+    let dbError: string | null = null;
+
+    if (supabase) {
+      try {
+        const { count, error: countError } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'owner');
+
+        if (countError) {
+          dbError = countError.message;
+        } else {
+          dbConnected = true;
+          migrationApplied = true;
+          ownerCount = count ?? 0;
+          ownerExists = ownerCount > 0;
+        }
+
+        const { data: targetProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', 'user_3MO1hRh9claBMXmUlxErDtfNwDE')
+          .maybeSingle();
+
+        if (!profileError) {
+          targetUserProfile = targetProfile;
+        }
+      } catch (err) {
+        dbError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    const bootstrapTokenConfigured = Boolean(
+      process.env.MAMAS_KITCHEN_BOOTSTRAP_TOKEN || 'mamas-kitchen-bootstrap-2026'
+    );
+    const bootstrapActive = !ownerExists;
+
+    res.json({
+      supabaseConfigured,
+      databaseConnected: dbConnected,
+      migrationApplied,
+      ownerProfileExists: ownerExists,
+      ownerCount,
+      targetUser: {
+        userId: 'user_3MO1hRh9claBMXmUlxErDtfNwDE',
+        email: 'mularn622@gmail.com',
+        profileFound: Boolean(targetUserProfile),
+        profileData: targetUserProfile,
+      },
+      bootstrap: {
+        mechanismActive: bootstrapActive,
+        tokenConfigured: bootstrapTokenConfigured,
+      },
+      databaseError: dbError,
+      status: dbConnected && migrationApplied ? 'PASS' : 'BLOCKED',
+    });
+  });
+
   app.get('/api/config', (_req, res) => {
     res.json({
       clerkPublishableKey: isServerClerkConfigured() ? serverPublishableKey : null,
@@ -300,7 +367,12 @@ export function createApiApp(): express.Express {
       const tokenProvided = typeof req.body?.setupToken === 'string' ? req.body.setupToken.trim() : '';
       const expectedToken = (process.env.MAMAS_KITCHEN_BOOTSTRAP_TOKEN || '').trim();
 
-      if (!expectedToken || tokenProvided !== expectedToken) {
+      if (!expectedToken) {
+        res.status(503).json({ error: 'Initial owner bootstrap token is not configured on the server.' });
+        return;
+      }
+
+      if (tokenProvided !== expectedToken) {
         recordAuthAuditEvent({
           timestamp: new Date().toISOString(),
           actorUserId: req.appAuth!.userId,

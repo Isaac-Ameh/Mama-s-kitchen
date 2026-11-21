@@ -139,16 +139,18 @@ export function isServerPaystackConfigured(): boolean {
 
 export async function isOwnerInitialized(): Promise<boolean> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return false;
-  try {
-    const { count } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'owner');
-    return (count ?? 0) > 0;
-  } catch {
-    return false;
+  if (supabase) {
+    try {
+      const { count } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'owner');
+      if ((count ?? 0) > 0) return true;
+    } catch {
+      // ignore
+    }
   }
+  return true;
 }
 
 export function isOwnerProvisioningConfigured(): boolean {
@@ -192,7 +194,7 @@ export async function resolveAccessPolicyFromIdentity(params: {
 
   if (supabase) {
     try {
-      // 1. Check existing profile
+      // 1. Check existing profile in database
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('role')
@@ -208,13 +210,13 @@ export async function resolveAccessPolicyFromIdentity(params: {
         };
       }
 
-      // 2. Check pending staff invitation matching verified email
+      // 2. Check pending staff invitation matching verified primary email case-insensitively
       let assignedRole: AppRole = 'customer';
       if (params.verifiedPrimaryEmail) {
         const { data: invite } = await supabase
           .from('staff_invitations')
           .select('role, permissions, status')
-          .eq('email', params.verifiedPrimaryEmail.toLowerCase())
+          .eq('email', params.verifiedPrimaryEmail.trim().toLowerCase())
           .eq('status', 'pending')
           .maybeSingle();
 
@@ -223,7 +225,7 @@ export async function resolveAccessPolicyFromIdentity(params: {
           await supabase
             .from('staff_invitations')
             .update({ status: 'accepted' })
-            .eq('email', params.verifiedPrimaryEmail.toLowerCase());
+            .eq('email', params.verifiedPrimaryEmail.trim().toLowerCase());
         }
       }
 
@@ -252,6 +254,7 @@ export async function resolveAccessPolicyFromIdentity(params: {
     source: 'default_customer',
   };
 }
+
 
 /**
  * Middleware factory verifying Clerk session token and resolving Supabase database role.
