@@ -20,6 +20,7 @@ import { AppAuthProvider } from './context/AppAuthContext';
 import { CartProvider } from './context/CartContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { HomePage } from './pages/HomePage';
 import { MenuPage } from './pages/MenuPage';
 import { MealDetailPage } from './pages/MealDetailPage';
@@ -29,6 +30,7 @@ import { CartPage } from './pages/CartPage';
 import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { AccountPage } from './pages/AccountPage';
+import { AdminPortalPage } from './pages/AdminPortalPage';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -46,44 +48,62 @@ function AnimatedRoutes() {
   // Key by top-level route segment so Clerk multi-step sub-routes (/sign-up/verify-email-address, etc.)
   // stay mounted smoothly without AnimatePresence remounting the Clerk widget mid-flow.
   const routeGroup = '/' + (location.pathname.split('/')[1] || '');
+  const isAdminRoute = routeGroup === '/admin';
+
+  if (isAdminRoute) {
+    return (
+      <Routes location={location}>
+        <Route
+          path="/admin/*"
+          element={
+            <AdminRoute>
+              <AdminPortalPage />
+            </AdminRoute>
+          }
+        />
+      </Routes>
+    );
+  }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={routeGroup}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <Routes location={location}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/menu" element={<MenuPage />} />
-          <Route path="/menu/:id" element={<MealDetailPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/sign-in/*" element={<SignInPage />} />
-          <Route path="/sign-up/*" element={<SignUpPage />} />
-          <Route
-            path="/cart"
-            element={
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/account/*"
-            element={
-              <ProtectedRoute>
-                <AccountPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
+    <Layout>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={routeGroup}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <Routes location={location}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/menu" element={<MenuPage />} />
+            <Route path="/menu/:id" element={<MealDetailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/sign-in/*" element={<SignInPage />} />
+            <Route path="/sign-up/*" element={<SignUpPage />} />
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account/*"
+              element={
+                <ProtectedRoute>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </motion.div>
+      </AnimatePresence>
+    </Layout>
   );
 }
 
@@ -159,9 +179,7 @@ export default function App() {
         <ClerkAndAuthWrapper>
           <CartProvider>
             <ScrollToTop />
-            <Layout>
-              <AnimatedRoutes />
-            </Layout>
+            <AnimatedRoutes />
           </CartProvider>
         </ClerkAndAuthWrapper>
       </BrowserRouter>

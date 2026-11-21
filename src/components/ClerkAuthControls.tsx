@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ClerkFailed, ClerkLoading, Show, UserButton } from '@clerk/react';
-import { User } from 'lucide-react';
+import { ShieldCheck, User } from 'lucide-react';
 import { useAppAuth } from '../context/AppAuthContext';
 
 interface ClerkAuthControlsProps {
@@ -72,7 +72,8 @@ export function ClerkAuthControls({
   variant = 'desktop',
   onAction,
 }: ClerkAuthControlsProps) {
-  const { isClerkConfigured, isSignedIn, fullName, signOut } = useAppAuth();
+  const { isClerkConfigured, isSignedIn, canAccessAdmin, fullName, signOut } =
+    useAppAuth();
 
   if (!isClerkConfigured) {
     return (
@@ -112,7 +113,21 @@ export function ClerkAuthControls({
         </Show>
 
         <Show when="signed-in">
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            {canAccessAdmin && (
+              <Link
+                to="/admin"
+                onClick={onAction}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  isOverDarkHero
+                    ? 'text-[#FAF7F2]/90 hover:text-white hover:bg-white/10'
+                    : 'text-[#143628] hover:bg-[#143628]/8'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Admin</span>
+              </Link>
+            )}
             <Link
               to="/account"
               onClick={onAction}
@@ -135,6 +150,15 @@ export function ClerkAuthControls({
   if (isSignedIn) {
     return (
       <div className="space-y-2 pt-2">
+        {canAccessAdmin && (
+          <Link
+            to="/admin"
+            onClick={onAction}
+            className="block w-full px-3 py-2.5 rounded-lg text-base font-medium text-[#143628] hover:bg-[#143628]/8 transition-colors"
+          >
+            Admin Portal
+          </Link>
+        )}
         <Link
           to="/account"
           onClick={onAction}
